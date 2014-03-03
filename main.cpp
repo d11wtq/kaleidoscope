@@ -3,9 +3,9 @@
  */
 
 #include <cstdlib>
-#include <string>
 #include "parser.cpp"
 
 int main(void) {
+  InitParser();
   return 0;
 }

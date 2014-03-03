@@ -5,8 +5,16 @@
 #include <cstdlib>
 #include <string>
 #include <vector>
+#include <map>
 #include "lexer.cpp"
 #include "ast.cpp"
+
+static ExprNode *ParseExpression();
+
+/**
+ * Operator precedences.
+ */
+static std::map<char, int> BinOpPrecedence;
 
 /**
  * Current lookahead token.
@@ -19,6 +27,27 @@ static int CurTok;
 static int getNextToken() {
   return CurTok = gettok();
 };
+
+/**
+ * Get the operator precedence to apply to the current token.
+ */
+static int GetTokenPrecedence() {
+  if (!isascii(CurTok))
+    return -1;
+
+  return std::max(-1, BinOpPrecedence[CurTok]);
+}
+
+/**
+ * Initialize static variables.
+ */
+static void InitParser() {
+  BinOpPrecedence['<'] = 10;
+  BinOpPrecedence['+'] = 20;
+  BinOpPrecedence['-'] = 20;
+  BinOpPrecedence['*'] = 40;
+  BinOpPrecedence['/'] = 40;
+}
 
 /**
  * Generic error handling function (returns a NULL node).
@@ -128,4 +157,49 @@ static ExprNode *ParsePrimary() {
   default:
     return ExprError("Unknown token, expecting expr");
   }
+}
+
+static ExprNode *ParseBinOpRHS(int ExprPrec, ExprNode *LHS) {
+  while (true) {
+    int TokPrec = GetTokenPrecedence();
+
+    // Don't consume anything if precedence lower than current expr
+    if (TokPrec < ExprPrec)
+      return LHS; // Recursion terminates here
+
+    int BinOp = CurTok;
+
+    getNextToken();
+
+    ExprNode *RHS = ParsePrimary();
+
+    if (!RHS)
+      return NULL;
+
+    int NextPrec = GetTokenPrecedence();
+
+    // If next operator is right-associative
+    if (TokPrec < NextPrec) {
+      // Replace entire RHS, using itself as LHS in a new Expr
+      RHS = ParseBinOpRHS(TokPrec+1, RHS);
+
+      if (!RHS)
+        return NULL;
+    } else {
+      // Replace the entire LHS with current Expr
+      LHS = new BinaryExprNode(BinOp, LHS, RHS);
+    }
+  }
+}
+
+/**
+ * Parse any type of expression from the input stream.
+ */
+static ExprNode *ParseExpression() {
+  ExprNode *LHS = ParsePrimary();
+
+  if (!LHS)
+    return NULL;
+
+  return ParseBinOpRHS(0, LHS);
 }
