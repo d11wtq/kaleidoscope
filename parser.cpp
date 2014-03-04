@@ -181,7 +181,7 @@ static ExprNode *ParseBinOpRHS(int ExprPrec, ExprNode *LHS) {
     // If next operator is right-associative
     if (TokPrec < NextPrec) {
       // Replace entire RHS, using itself as LHS in a new Expr
-      RHS = ParseBinOpRHS(TokPrec+1, RHS);
+      RHS = ParseBinOpRHS(TokPrec + 1, RHS);
 
       if (!RHS)
         return NULL;
@@ -190,6 +190,59 @@ static ExprNode *ParseBinOpRHS(int ExprPrec, ExprNode *LHS) {
       LHS = new BinaryExprNode(BinOp, LHS, RHS);
     }
   }
+}
+
+/**
+ * Parse a function prototype from the input stream.
+ */
+static PrototypeNode *ParsePrototype() {
+  if (CurTok != tok_identifier)
+    return PrototypeError("Expected function name in prototype");
+
+  std::string IdentifierName = IdentifierStr;
+  getNextToken();
+
+  if (CurTok != '(')
+    return PrototypeError("Expected '(' in prototype");
+
+  std::vector<std::string> Params;
+
+  while (getNextToken() == tok_identifier)
+    Params.push_back(IdentifierStr);
+
+  if (CurTok != ')')
+    return PrototypeError("Expected ')' in prototype");
+
+  getNextToken();
+
+  return new PrototypeNode(IdentifierName, Params);
+}
+
+/**
+ * Parse a function definition from the input stream (e.g. 'def foo(bar) body_expr').
+ */
+static FunctionNode *ParseFunction() {
+  getNextToken(); // 'def'
+
+  PrototypeNode *Prototype = ParsePrototype();
+
+  if (!Prototype)
+    return NULL;
+
+  ExprNode *Body = ParseExpression();
+
+  if (!Body)
+    return NULL;
+
+  return new FunctionNode(Prototype, Body);
+}
+
+/**
+ * Parse externed function prototypes (e.g. 'extern foo(bar)').
+ */
+static PrototypeNode *ParseExtern() {
+  getNextToken(); // 'extern'
+  return ParsePrototype();
 }
 
 /**
@@ -202,4 +255,20 @@ static ExprNode *ParseExpression() {
     return NULL;
 
   return ParseBinOpRHS(0, LHS);
+}
+
+/**
+ * Parse a free expression, not inside a function definition.
+ *
+ * This just wraps the expression in an anonymous function.
+ */
+static FunctionNode *ParseTopLevelExpr() {
+  ExprNode *Expr = ParseExpression();
+
+  if (!Expr)
+    return NULL;
+
+  PrototypeNode *Prototype = new PrototypeNode("", std::vector<std::string>());
+
+  return new FunctionNode(Prototype, Expr);
 }
