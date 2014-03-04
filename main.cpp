@@ -3,9 +3,9 @@
  */
 
 #include <cstdlib>
-#include "parser.cpp"
+#include "runloop.cpp"
 
-int main(void) {
-  InitParser();
+int main() {
+  RunLoop();
   return 0;
 }

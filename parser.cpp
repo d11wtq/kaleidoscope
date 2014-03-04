@@ -35,7 +35,12 @@ static int GetTokenPrecedence() {
   if (!isascii(CurTok))
     return -1;
 
-  return std::max(-1, BinOpPrecedence[CurTok]);
+  int TokPrec = BinOpPrecedence[CurTok];
+
+  if (TokPrec <= 0)
+    return -1;
+
+  return TokPrec;
 }
 
 /**
@@ -87,7 +92,7 @@ static ExprNode *ParseNumberExpr() {
  */
 static ExprNode *ParseParenExpr() {
   getNextToken();
-  ExprNode *Node = ParseExpression(); // Where does this come from?
+  ExprNode *Node = ParseExpression();
 
   if (!Node)
     return NULL;
