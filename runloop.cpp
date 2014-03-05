@@ -73,4 +73,6 @@ void RunLoop() {
       break;
     }
   }
+
+  TheModule->dump();
 }
