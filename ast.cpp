@@ -15,7 +15,7 @@ using namespace llvm;
 /**
  * Called when an error is detected generation LLVM IR.
  */
-Value *Error(const char *Str) {
+void *Error(const char *Str) {
   fprintf(stderr, "Error: %s\n", Str);
   return NULL;
 }
@@ -60,7 +60,7 @@ public:
   virtual Value *Codegen() {
     Value *V = Symbols[Name];
     if (!V)
-      return Error("Undefined variable");
+      return (Value *) Error("Undefined variable");
 
     return V;
   }
@@ -107,7 +107,7 @@ public:
       }
 
     default:
-      return Error("Unspported binary operator");
+      return (Value *) Error("Unspported binary operator");
     }
   }
 };
@@ -126,10 +126,10 @@ public:
     Function *CalleeFn = TheModule->getFunction(Callee);
 
     if (!CalleeFn)
-      return Error("Call to undefined function");
+      return (Value *) Error("Call to undefined function");
 
     if (CalleeFn->arg_size() != Args.size())
-      return Error("Incorrect arg count");
+      return (Value *) Error("Incorrect arg count");
 
     std::vector<Value *> CallArgs;
 
@@ -154,6 +154,50 @@ public:
   PrototypeNode(const std::string &name,
                 const std::vector<std::string> &params)
     : Name(name), Params(params) {}
+
+  Function *Codegen() {
+    // Vector of arg types (double, double, ...)
+    std::vector<Type *> Doubles(
+      Params.size(),
+      Type::getDoubleTy(getGlobalContext()));
+    // Overal function type (double(double, double, ...))
+    FunctionType *FT = FunctionType::get(
+      Type::getDoubleTy(getGlobalContext()),
+      Doubles,
+      false);
+
+    // IR function
+    Function *Fn = Function::Create(
+      FT,
+      Function::ExternalLinkage,
+      Name,
+      TheModule);
+
+    /* In a simple system, this much would be enough */
+
+    // Allow multiple externs, or setting a body for externs
+    if (Fn->getName() != Name) {
+      Fn->eraseFromParent();
+      Fn = TheModule->getFunction(Name);
+
+      if (!Fn->empty())
+        return (Function *) Error("Redefinition of function not allowed");
+
+      if (Fn->arg_size() != Params.size())
+        return (Function *) Error("Redefining function with arity mismatch");
+    }
+
+    unsigned Idx = 0;
+    Function::arg_iterator AI = Fn->arg_begin();
+
+    // Put args in the Symbol table and name them
+    for (; Idx < Params.size(); ++Idx, ++AI) {
+      AI->setName(Params[Idx]);
+      Symbols[Params[Idx]] = AI;
+    }
+
+    return Fn;
+  }
 };
 
 /**
@@ -161,8 +205,31 @@ public:
  */
 class FunctionNode {
   PrototypeNode *Prototype;
-  ExprNode *Body; // Why is this not a vector?
+  ExprNode *Body;
 public:
   FunctionNode(PrototypeNode *prototype, ExprNode *body)
     : Prototype(prototype), Body(body) {}
+
+  Function *Codegen() {
+    Symbols.clear();
+
+    Function *Fn = Prototype->Codegen();
+
+    if (!Fn)
+      return NULL;
+
+    BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", Fn);
+    Builder.SetInsertPoint(BB);
+
+    Value *BodyValue = Body->Codegen();
+
+    if (!BodyValue) {
+      Fn->eraseFromParent();
+      return NULL;
+    }
+
+    Builder.CreateRet(BodyValue);
+
+    return Fn;
+  }
 };
