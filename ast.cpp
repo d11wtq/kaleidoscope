@@ -15,7 +15,7 @@ using namespace llvm;
 /**
  * Called when an error is detected generation LLVM IR.
  */
-void *Error(const char *Str) {
+Value *ErrorV(const char *Str) {
   fprintf(stderr, "Error: %s\n", Str);
   return NULL;
 }
@@ -60,7 +60,7 @@ public:
   virtual Value *Codegen() {
     Value *V = Symbols[Name];
     if (!V)
-      return (Value *) Error("Undefined variable");
+      return ErrorV("Undefined variable");
 
     return V;
   }
@@ -107,7 +107,7 @@ public:
       }
 
     default:
-      return (Value *) Error("Unspported binary operator");
+      return ErrorV("Unspported binary operator");
     }
   }
 };
@@ -125,11 +125,12 @@ public:
   virtual Value *Codegen() {
     Function *CalleeFn = TheModule->getFunction(Callee);
 
-    if (!CalleeFn)
-      return (Value *) Error("Call to undefined function");
+    if (!CalleeFn) {
+      return ErrorV("Call to undefined function");
+    }
 
     if (CalleeFn->arg_size() != Args.size())
-      return (Value *) Error("Incorrect arg count");
+      return ErrorV("Incorrect arg count");
 
     std::vector<Value *> CallArgs;
 
@@ -180,11 +181,15 @@ public:
       Fn->eraseFromParent();
       Fn = TheModule->getFunction(Name);
 
-      if (!Fn->empty())
-        return (Function *) Error("Redefinition of function not allowed");
+      if (!Fn->empty()) {
+        ErrorV("Redefinition of function not allowed");
+        return NULL;
+      }
 
-      if (Fn->arg_size() != Params.size())
-        return (Function *) Error("Redefining function with arity mismatch");
+      if (Fn->arg_size() != Params.size()) {
+        ErrorV("Redefining function with arity mismatch");
+        return NULL;
+      }
     }
 
     unsigned Idx = 0;

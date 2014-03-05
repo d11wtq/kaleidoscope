@@ -7,24 +7,33 @@
 #include "parser.cpp"
 
 void HandleTopLevelExpression() {
-  if (ParseTopLevelExpr()) {
-    printf("Parsed a top-level expr\n");
+  if (FunctionNode *Fn = ParseTopLevelExpr()) {
+    if (Function *F = Fn->Codegen()) {
+      printf("Parsed a top-level expr\n");
+      F->dump();
+    }
   } else {
     getNextToken();
   }
 }
 
 void HandleFunction() {
-  if (ParseFunction()) {
-    printf("Parsed a function definition\n");
+  if (FunctionNode *Fn = ParseFunction()) {
+    if (Function *F = Fn->Codegen()) {
+      printf("Parsed a function definition\n");
+      F->dump();
+    }
   } else {
     getNextToken();
   }
 }
 
 void HandleExtern() {
-  if (ParseExtern()) {
-    printf("Parsed an extern expr\n");
+  if (PrototypeNode *Proto = ParseExtern()) {
+    if (Function *F = Proto->Codegen()) {
+      printf("Parsed an extern expr\n");
+      F->dump();
+    }
   } else {
     getNextToken();
   }
@@ -34,6 +43,8 @@ void HandleExtern() {
  * Simple example RunLoop for debugging in a REPL.
  */
 void RunLoop() {
+  TheModule = new Module("Kaleidoscope", getGlobalContext());
+
   InitParser();
 
   printf("ready> ");

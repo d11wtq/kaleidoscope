@@ -173,7 +173,6 @@ static ExprNode *ParseBinOpRHS(int ExprPrec, ExprNode *LHS) {
       return LHS; // Recursion terminates here
 
     int BinOp = CurTok;
-
     getNextToken();
 
     ExprNode *RHS = ParsePrimary();
@@ -190,10 +189,10 @@ static ExprNode *ParseBinOpRHS(int ExprPrec, ExprNode *LHS) {
 
       if (!RHS)
         return NULL;
-    } else {
-      // Replace the entire LHS with current Expr
-      LHS = new BinaryExprNode(BinOp, LHS, RHS);
     }
+
+    // Replace the entire LHS with current Expr
+    LHS = new BinaryExprNode(BinOp, LHS, RHS);
   }
 }
 
