@@ -5,12 +5,15 @@
 #include <cstdlib>
 #include <string>
 #include "parser.cpp"
+#include <llvm/ExecutionEngine/JIT.h>
+#include <llvm/Support/TargetSelect.h>
 
 void HandleTopLevelExpression() {
   if (FunctionNode *Fn = ParseTopLevelExpr()) {
     if (Function *F = Fn->Codegen()) {
-      printf("Parsed a top-level expr\n");
-      F->dump();
+      void *FPtr = TheExecutionEngine->getPointerToFunction(F);
+      double (*FP)() = (double (*)())(intptr_t)FPtr;
+      printf("-> %f\n", FP());
     }
   } else {
     getNextToken();
@@ -43,7 +46,15 @@ void HandleExtern() {
  * Simple example RunLoop for debugging in a REPL.
  */
 void RunLoop() {
-  TheModule = new Module("Kaleidoscope", getGlobalContext());
+  InitializeNativeTarget();
+
+  std::string Err;
+  TheModule          = new Module("Kaleidoscope", getGlobalContext());
+  TheExecutionEngine = EngineBuilder(TheModule).setErrorStr(&Err).create();
+  if (!TheExecutionEngine) {
+    printf("Failed to initialize JIT: %s\n", Err.c_str());
+    exit(1);
+  }
 
   InitParser();
 

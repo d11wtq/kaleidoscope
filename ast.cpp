@@ -6,6 +6,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -21,6 +22,7 @@ Value *ErrorV(const char *Str) {
 }
 
 static Module *TheModule;
+static ExecutionEngine *TheExecutionEngine;
 static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, Value *> Symbols;
 
