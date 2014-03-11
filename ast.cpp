@@ -7,6 +7,10 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/PassManager.h>
+#include <llvm/IR/DataLayout.h>
+#include <llvm/Analysis/Passes.h>
+#include <llvm/Transforms/Scalar.h>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -207,6 +211,24 @@ public:
   }
 };
 
+class Optimizer {
+  Module *Mod;
+public:
+  Optimizer(Module *M) : Mod(M) {}
+
+  FunctionPassManager *Create() {
+    FunctionPassManager *FPM = new FunctionPassManager(Mod);
+    FPM->add(new DataLayout(*TheExecutionEngine->getDataLayout()));
+    FPM->add(createBasicAliasAnalysisPass());
+    FPM->add(createInstructionCombiningPass());
+    FPM->add(createReassociatePass());
+    FPM->add(createGVNPass());
+    FPM->add(createCFGSimplificationPass());
+    FPM->doInitialization();
+    return FPM;
+  }
+};
+
 /**
  * AST node for a complete function definition & body.
  */
@@ -236,6 +258,8 @@ public:
     }
 
     Builder.CreateRet(BodyValue);
+
+    Optimizer(TheModule).Create()->run(*Fn);
 
     return Fn;
   }
