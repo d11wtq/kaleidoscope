@@ -31,6 +31,27 @@ static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, Value *> Symbols;
 
 /**
+ * LLVM IR optimizer factory.
+ */
+class Optimizer {
+  Module *Mod;
+public:
+  Optimizer(Module *M) : Mod(M) {}
+
+  FunctionPassManager *Create() {
+    FunctionPassManager *FPM = new FunctionPassManager(Mod);
+    FPM->add(new DataLayout(*TheExecutionEngine->getDataLayout()));
+    FPM->add(createBasicAliasAnalysisPass());
+    FPM->add(createInstructionCombiningPass());
+    FPM->add(createReassociatePass());
+    FPM->add(createGVNPass());
+    FPM->add(createCFGSimplificationPass());
+    FPM->doInitialization();
+    return FPM;
+  }
+};
+
+/**
  * Base class for all AST nodes.
  */
 class ExprNode {
@@ -152,6 +173,77 @@ public:
 };
 
 /**
+ * AST node that describes an if..then..else..; in the source.
+ */
+class IfNode : public ExprNode {
+  ExprNode *Cond;
+  ExprNode *Then;
+  ExprNode *Else;
+public:
+  IfNode(ExprNode *cond, ExprNode *pass, ExprNode *fail) :
+    Cond(cond),
+    Then(pass),
+    Else(fail) {}
+
+  Value *Codegen() {
+    Value *CondV = Cond->Codegen();
+    if (!CondV)
+      return NULL;
+
+    // boolean (single bit)
+    CondV = Builder.CreateFCmpONE(
+      CondV,
+      ConstantFP::get(getGlobalContext(), APFloat(0.0)),
+      "ifcond");
+
+    Function *Fn = Builder.GetInsertBlock()->getParent();
+
+    BasicBlock *ThenBB = BasicBlock::Create(getGlobalContext(), "then");
+    BasicBlock *ElseBB = BasicBlock::Create(getGlobalContext(), "else");
+    BasicBlock *DoneBB = BasicBlock::Create(getGlobalContext(), "done");
+
+    // if
+    Builder.CreateCondBr(CondV, ThenBB, ElseBB);
+
+    // then
+    Fn->getBasicBlockList().push_back(ThenBB);
+    Builder.SetInsertPoint(ThenBB);
+
+    Value *ThenV = Then->Codegen();
+    if (!ThenV)
+      return NULL;
+
+    Builder.CreateBr(DoneBB);
+    ThenBB = Builder.GetInsertBlock();
+
+    // else
+    Fn->getBasicBlockList().push_back(ElseBB);
+    Builder.SetInsertPoint(ElseBB);
+
+    Value *ElseV = Else->Codegen();
+    if (!ElseV)
+      return NULL;
+
+    Builder.CreateBr(DoneBB);
+    ElseBB = Builder.GetInsertBlock();
+
+    // done
+    Fn->getBasicBlockList().push_back(DoneBB);
+    Builder.SetInsertPoint(DoneBB);
+
+    PHINode *PN = Builder.CreatePHI(
+      Type::getDoubleTy(getGlobalContext()),
+      2,
+      "iftmp");
+
+    PN->addIncoming(ThenV, ThenBB);
+    PN->addIncoming(ElseV, ElseBB);
+
+    return PN;
+  }
+};
+
+/**
  * AST node that describes a function definition (not its body).
  */
 class PrototypeNode {
@@ -208,24 +300,6 @@ public:
     }
 
     return Fn;
-  }
-};
-
-class Optimizer {
-  Module *Mod;
-public:
-  Optimizer(Module *M) : Mod(M) {}
-
-  FunctionPassManager *Create() {
-    FunctionPassManager *FPM = new FunctionPassManager(Mod);
-    FPM->add(new DataLayout(*TheExecutionEngine->getDataLayout()));
-    FPM->add(createBasicAliasAnalysisPass());
-    FPM->add(createInstructionCombiningPass());
-    FPM->add(createReassociatePass());
-    FPM->add(createGVNPass());
-    FPM->add(createCFGSimplificationPass());
-    FPM->doInitialization();
-    return FPM;
   }
 };
 

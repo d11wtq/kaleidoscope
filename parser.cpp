@@ -147,6 +147,37 @@ static ExprNode *ParseIdentifierExpr() {
 }
 
 /**
+ * Parse a if..then..else..; expression from the input stream.
+ */
+static ExprNode *ParseIfExpr() {
+  getNextToken();
+
+  ExprNode *Cond = ParseExpression();
+  if (!Cond)
+    return NULL;
+
+  if (CurTok != tok_then)
+    return ExprError("Expected 'then' after conditional");
+
+  getNextToken();
+
+  ExprNode *Then = ParseExpression();
+  if (!Then)
+    return NULL;
+
+  if (CurTok != tok_else)
+    return ExprError("Expected 'else' in conditional");
+
+  getNextToken();
+
+  ExprNode *Else = ParseExpression();
+  if (!Else)
+    return NULL;
+
+  return new IfNode(Cond, Then, Else);
+}
+
+/**
  * Wrapper function to parse a primary token from the grammar.
  */
 static ExprNode *ParsePrimary() {
@@ -156,6 +187,9 @@ static ExprNode *ParsePrimary() {
 
   case tok_number:
     return ParseNumberExpr();
+
+  case tok_if:
+    return ParseIfExpr();
 
   case '(':
     return ParseParenExpr();
